@@ -62,19 +62,19 @@ in the current directory.`,
   goprobe --hosts hosts.txt
 
   # Custom ports (comma-separated)
-  goprobe -H hosts.txt -p 8080,8443
+  goprobe --hosts hosts.txt -p 8080,8443
 
   # Multiple flags accumulate
-  goprobe -H hosts.txt -p 22 -p 443
+  goprobe --hosts hosts.txt -p 22 -p 443
 
   # Save CSV and JSON with default filenames
-  goprobe -H hosts.txt --csv --json
+  goprobe --hosts hosts.txt --csv --json
 
   # Custom output filenames
-  goprobe -H hosts.txt --csv out/report.csv --json out/report.json
+  goprobe --hosts hosts.txt --csv out/report.csv --json out/report.json
 
   # Error on explicit empty ports list
-  goprobe -H hosts.txt --ports=`,
+  goprobe --hosts hosts.txt --ports=`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -1,0 +1,37 @@
+# Go build and test artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Coverage files
+coverage.out
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dependency directories
+vendor/
+
+# OS files
+.DS_Store
+
+# Output and temp files
+*.log
+*.tmp
+
+# Fuzzing artifacts
+fuzz-
+
+# Reports
+*.csv
+*.json
+
+# Ignore test.txt if not needed
+/test.txt

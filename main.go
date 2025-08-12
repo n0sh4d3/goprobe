@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
+	tcpcon "github.com/n0sh4d3/goprobe/tcpCon"
 	"github.com/spf13/cobra"
 )
 
 var (
 	hostsFile string
 	ports     []string
-	timeout   int
+	timeout   time.Duration
 
 	csvPathOpt  string // holds value if user provided one
 	jsonPathOpt string // holds value if user provided one
@@ -37,8 +39,10 @@ func probe(hostsFileContent []string, ports []string) []string {
 
 	for _, host := range hostsFileContent {
 		for _, port := range ports {
-			combo := fmt.Sprintf("%s:%s", host, port)
-			hostWport = append(hostWport, combo)
+			if port != "" {
+				combo := fmt.Sprintf("%s:%s", host, port)
+				hostWport = append(hostWport, combo)
+			}
 		}
 	}
 
@@ -89,6 +93,7 @@ in the current directory.`,
 			data, err := os.ReadFile(hostsFile)
 			if err != nil {
 				return err
+
 			}
 			hosts, err := fileToStrSlice(data)
 			if err != nil {
@@ -97,6 +102,7 @@ in the current directory.`,
 
 			results := probe(hosts, ports)
 
+			tcpcon.NewScanner(results, timeout)
 			for _, r := range results {
 				fmt.Fprintln(cmd.OutOrStdout(), r)
 			}
@@ -127,6 +133,8 @@ in the current directory.`,
 	defaultPorts := []string{"22", "80", "443"}
 
 	rootCmd.Flags().StringVar(&hostsFile, "hosts", "", "hosts file to check port availability against")
+	rootCmd.Flags().DurationVar(&timeout, "timeout", 5*time.Second,
+		"per-connection timeout (e.g., 500ms, 2s, 5s)")
 	rootCmd.Flags().StringSliceVar(&ports, "ports", defaultPorts, "ports to check availability")
 	_ = rootCmd.MarkFlagRequired("hosts")
 

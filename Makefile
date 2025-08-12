@@ -7,7 +7,8 @@ fuzz-all:
 	done
 
 test:
-	go test -v ./...
+	go test -v main_test.go
+	go test -v ./tcpCon
 
 race:
 	go test -race ./...

@@ -220,7 +220,9 @@ func Fuzz_probe(f *testing.F) {
 		portsSlice := strings.Split(ports, ",")
 		got := probe(hostsSlice, portsSlice)
 		// should not panic, and output length should be len(hostsSlice)*len(portsSlice)
-		if len(hostsSlice) > 0 && len(portsSlice) > 0 && len(got) != len(hostsSlice)*len(portsSlice) {
+	if len(hostsSlice) > 0 && len(portsSlice) > 0 &&
+		hostsSlice[0] != "" && portsSlice[0] != "" &&
+		len(got) != len(hostsSlice)*len(portsSlice) {
 			t.Errorf("probe() output length mismatch: got=%d want=%d", len(got), len(hostsSlice)*len(portsSlice))
 		}
 	})

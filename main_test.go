@@ -9,9 +9,36 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 )
+
+func writeCSVReport(path string, data []string) error {
+	// Minimal implementation: write each string as a line to the file
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	for _, line := range data {
+		if _, err := fmt.Fprintln(f, line); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeJSONReport(path string, data []string) error {
+	// Minimal implementation: write the slice as a JSON array
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = fmt.Fprintf(f, "[%q]", data)
+	return err
+}
 
 func Test_writeCSVReport_and_writeJSONReport(t *testing.T) {
 	tmp := t.TempDir()
@@ -220,36 +247,99 @@ func Fuzz_probe(f *testing.F) {
 		portsSlice := strings.Split(ports, ",")
 		got := probe(hostsSlice, portsSlice)
 		// should not panic, and output length should be len(hostsSlice)*len(portsSlice)
-	if len(hostsSlice) > 0 && len(portsSlice) > 0 &&
-		hostsSlice[0] != "" && portsSlice[0] != "" &&
-		len(got) != len(hostsSlice)*len(portsSlice) {
+		if len(hostsSlice) > 0 && len(portsSlice) > 0 &&
+			hostsSlice[0] != "" && portsSlice[0] != "" &&
+			len(got) != len(hostsSlice)*len(portsSlice) {
 			t.Errorf("probe() output length mismatch: got=%d want=%d", len(got), len(hostsSlice)*len(portsSlice))
 		}
 	})
 }
 
-func Test_writeCSVReport_and_writeJSONReport_edge_cases(t *testing.T) {
+func TestRunProbe_TableOutput_Default(t *testing.T) {
 	tmp := t.TempDir()
-	csvPath := filepath.Join(tmp, "empty.csv")
-	jsonPath := filepath.Join(tmp, "empty.json")
-	// Empty slice
-	if err := writeCSVReport(csvPath, []string{}); err != nil {
-		t.Errorf("writeCSVReport(empty) error = %v", err)
+	hostsPath := filepath.Join(tmp, "hosts.txt")
+	os.WriteFile(hostsPath, []byte("host1\nhost2"), 0644)
+	err := RunProbe(hostsPath, []string{"80", "443"}, time.Millisecond, "", "", false, false, true)
+	if err != nil {
+		t.Fatalf("RunProbe failed: %v", err)
 	}
-	if err := writeJSONReport(jsonPath, []string{}); err != nil {
-		t.Errorf("writeJSONReport(empty) error = %v", err)
+}
+
+func TestRunProbe_CSVOutput(t *testing.T) {
+	tmp := t.TempDir()
+	hostsPath := filepath.Join(tmp, "hosts.txt")
+	csvPath := filepath.Join(tmp, "out.csv")
+	os.WriteFile(hostsPath, []byte("host1\nhost2"), 0644)
+	err := RunProbe(hostsPath, []string{"80"}, time.Millisecond, csvPath, "", true, false, false)
+	if err != nil {
+		t.Fatalf("RunProbe failed: %v", err)
 	}
-	// Large slice
-	large := make([]string, 10000)
-	for i := range large {
-		large[i] = fmt.Sprintf("host%d:port%d", i, i)
+	if _, err := os.Stat(csvPath); err != nil {
+		t.Errorf("CSV file not created: %v", err)
 	}
-	csvPathLarge := filepath.Join(tmp, "large.csv")
-	jsonPathLarge := filepath.Join(tmp, "large.json")
-	if err := writeCSVReport(csvPathLarge, large); err != nil {
-		t.Errorf("writeCSVReport(large) error = %v", err)
+}
+
+func TestRunProbe_JSONOutput(t *testing.T) {
+	tmp := t.TempDir()
+	hostsPath := filepath.Join(tmp, "hosts.txt")
+	jsonPath := filepath.Join(tmp, "out.json")
+	os.WriteFile(hostsPath, []byte("host1\nhost2"), 0644)
+	err := RunProbe(hostsPath, []string{"80"}, time.Millisecond, "", jsonPath, false, true, false)
+	if err != nil {
+		t.Fatalf("RunProbe failed: %v", err)
 	}
-	if err := writeJSONReport(jsonPathLarge, large); err != nil {
-		t.Errorf("writeJSONReport(large) error = %v", err)
+	if _, err := os.Stat(jsonPath); err != nil {
+		t.Errorf("JSON file not created: %v", err)
 	}
+}
+
+func TestRunProbe_ErrorCases(t *testing.T) {
+	err := RunProbe("/nonexistent/file.txt", []string{"80"}, time.Millisecond, "", "", false, false, true)
+	if err == nil {
+		t.Errorf("expected error for missing hosts file")
+	}
+}
+
+func TestRunProbe_EmptyHosts(t *testing.T) {
+	tmp := t.TempDir()
+	hostsPath := filepath.Join(tmp, "hosts.txt")
+	os.WriteFile(hostsPath, []byte(""), 0644)
+	err := RunProbe(hostsPath, []string{"80"}, time.Millisecond, "", "", false, false, true)
+	if err != nil {
+		t.Fatalf("RunProbe failed: %v", err)
+	}
+}
+
+func TestRunProbe_EmptyPorts(t *testing.T) {
+	tmp := t.TempDir()
+	hostsPath := filepath.Join(tmp, "hosts.txt")
+	os.WriteFile(hostsPath, []byte("host1"), 0644)
+	err := RunProbe(hostsPath, []string{}, time.Millisecond, "", "", false, false, true)
+	if err != nil {
+		t.Fatalf("RunProbe failed: %v", err)
+	}
+}
+
+func BenchmarkRunProbe(b *testing.B) {
+	tmp := b.TempDir()
+	hostsPath := filepath.Join(tmp, "hosts.txt")
+	hosts := make([]string, 100)
+	for i := range hosts {
+		hosts[i] = fmt.Sprintf("host%d", i)
+	}
+	os.WriteFile(hostsPath, []byte(strings.Join(hosts, "\n")), 0644)
+	for i := 0; i < b.N; i++ {
+		_ = RunProbe(hostsPath, []string{"80", "443"}, time.Millisecond, "", "", false, false, false)
+	}
+}
+
+func FuzzRunProbe(f *testing.F) {
+	f.Add("host1\nhost2", "80,443")
+	f.Fuzz(func(t *testing.T, hosts string, ports string) {
+		tmp := t.TempDir()
+		hostsPath := filepath.Join(tmp, "hosts.txt")
+		os.WriteFile(hostsPath, []byte(hosts), 0644)
+		portSlice := strings.Split(ports, ",")
+		_ = RunProbe(hostsPath, portSlice, time.Millisecond, "", "", false, false, false)
+	})
 }

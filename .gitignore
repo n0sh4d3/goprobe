@@ -35,3 +35,5 @@ fuzz-
 
 # Ignore test.txt if not needed
 /test.txt
+
+testdata/

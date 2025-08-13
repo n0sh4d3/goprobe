@@ -35,6 +35,9 @@ func WriteCSVReport(path string, results map[string]bool) error {
 		}
 		w.Write([]string{host, port, status})
 	}
+	if path != "/dev/stdout" {
+		fmt.Printf("\033[35m[INFO]\033[0m CSV file created: %s\n", path)
+	}
 	return nil
 }
 
@@ -59,12 +62,25 @@ func WriteJSONReport(path string, results map[string]bool) error {
 	}
 	enc := json.NewEncoder(file)
 	enc.SetIndent("", "  ")
-	return enc.Encode(out)
+	if err := enc.Encode(out); err != nil {
+		return err
+	}
+	if path != "/dev/stdout" {
+		fmt.Printf("\033[35m[INFO]\033[0m JSON file created: %s\n", path)
+	}
+	return nil
 }
 
 func PrintTable(results map[string]bool) {
-	fmt.Printf("%-20s %-8s %-8s\n", "hostname", "port", "status")
-	fmt.Printf("%-20s %-8s %-8s\n", strings.Repeat("-", 20), strings.Repeat("-", 8), strings.Repeat("-", 8))
+	const (
+		green  = "\033[32m"
+		red    = "\033[31m"
+		yellow = "\033[33m"
+		cyan   = "\033[36m"
+		reset  = "\033[0m"
+	)
+	fmt.Printf(cyan+"%-20s %-8s %-8s\n"+reset, "hostname", "port", "status")
+	fmt.Printf(cyan+"%-20s %-8s %-8s\n"+reset, strings.Repeat("-", 20), strings.Repeat("-", 8), strings.Repeat("-", 8))
 	for addr, open := range results {
 		parts := strings.Split(addr, ":")
 		host, port := parts[0], ""
@@ -72,9 +88,11 @@ func PrintTable(results map[string]bool) {
 			port = parts[1]
 		}
 		status := "closed"
+		color := red
 		if open {
 			status = "open"
+			color = green
 		}
-		fmt.Printf("%-20s %-8s %-8s\n", host, port, status)
+		fmt.Printf(yellow+"%-20s %-8s "+reset+"%s%-8s%s\n", host, port, color, status, reset)
 	}
 }

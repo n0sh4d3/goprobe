@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/n0sh4d3/goprobe/output"
 	tcpcon "github.com/n0sh4d3/goprobe/tcpCon"
 	"github.com/spf13/cobra"
 )
@@ -19,6 +20,7 @@ var (
 	jsonPathOpt string // holds value if user provided one
 	writeCSV    bool   // toggled when --csv present without value
 	writeJSON   bool   // toggled when --json present without value
+	writeStdout bool   // toggled when --stdout present
 )
 
 /*
@@ -49,36 +51,111 @@ func probe(hostsFileContent []string, ports []string) []string {
 	return hostWport
 }
 
+// Refactored main logic for testability
+func RunProbe(hostsFile string, ports []string, timeout time.Duration, csvPathOpt, jsonPathOpt string, writeCSV, writeJSON, writeStdout bool) error {
+	data, err := os.ReadFile(hostsFile)
+	if err != nil {
+		return err
+	}
+	hosts, err := fileToStrSlice(data)
+	if err != nil {
+		return err
+	}
+	addrs := probe(hosts, ports)
+	scanner := tcpcon.NewScanner(addrs, timeout)
+	scanner.Listen4Port()
+
+	outputSelected := writeCSV || csvPathOpt != "" || writeJSON || jsonPathOpt != "" || writeStdout
+
+	if writeStdout {
+		printed := false
+		if writeCSV || csvPathOpt != "" {
+			output.WriteCSVReport("/dev/stdout", scanner.HostsWStatus)
+			printed = true
+		}
+		if writeJSON || jsonPathOpt != "" {
+			output.WriteJSONReport("/dev/stdout", scanner.HostsWStatus)
+			printed = true
+		}
+		if !printed {
+			output.PrintTable(scanner.HostsWStatus)
+		}
+	} else if !outputSelected {
+		output.PrintTable(scanner.HostsWStatus)
+	}
+
+	if writeCSV || csvPathOpt != "" {
+		path := csvPathOpt
+		if path == "" {
+			path = "goprobe.csv"
+		}
+		if err := output.WriteCSVReport(path, scanner.HostsWStatus); err != nil {
+			return fmt.Errorf("write csv: %w", err)
+		}
+	}
+	if writeJSON || jsonPathOpt != "" {
+		path := jsonPathOpt
+		if path == "" {
+			path = "goprobe.json"
+		}
+		if err := output.WriteJSONReport(path, scanner.HostsWStatus); err != nil {
+			return fmt.Errorf("write json: %w", err)
+		}
+	}
+	return nil
+}
+
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "goprobe [flags]",
 		Short: "Check port availability for a list of hosts",
-		Long: `goprobe reads a list of hosts from a file (one per line) and probes TCP ports.
+		Long: `goprobe is a simple, user-friendly tool to check if TCP ports are open on a list of hosts.
 
-Ports can be provided as a comma-separated list or via multiple --ports flags.
-If --ports is omitted or given without a value, defaults (22,80,443) are used.
+QUICK START:
+  1. Create a text file (e.g. hosts.txt) with one host per line.
+  2. Run: goprobe --hosts hosts.txt
+  3. See results printed in a table.
 
-Optionally, results can be written to CSV and/or JSON. Supplying --csv or --json
-without a value writes to default filenames (goprobe.csv / goprobe.json)
-in the current directory.`,
-		Example: `
-  # Use default ports (22,80,443)
+FLAGS:
+  --hosts <file>      (required) Path to file with hosts, one per line
+  --ports <list>      Ports to check, comma-separated (default: 22,80,443)
+  --timeout <dur>     Timeout for each connection (e.g. 500ms, 2s)
+  --csv [file]        Write results to CSV (default: goprobe.csv)
+  --json [file]       Write results to JSON (default: goprobe.json)
+  --stdout            Print results to terminal (table by default, or CSV/JSON if combined)
+
+EXAMPLES:
+  # Basic usage (table output)
   goprobe --hosts hosts.txt
 
-  # Custom ports (comma-separated)
-  goprobe --hosts hosts.txt -p 8080,8443
+  # Custom ports
+  goprobe --hosts hosts.txt --ports 8080,8443
 
-  # Multiple flags accumulate
-  goprobe --hosts hosts.txt -p 22 -p 443
-
-  # Save CSV and JSON with default filenames
+  # Save results to CSV and JSON
   goprobe --hosts hosts.txt --csv --json
 
   # Custom output filenames
-  goprobe --hosts hosts.txt --csv out/report.csv --json out/report.json
+  goprobe --hosts hosts.txt --csv out.csv --json out.json
+
+  # Print results as CSV to terminal
+  goprobe --hosts hosts.txt --csv --stdout
+
+  # Print results as JSON to terminal
+  goprobe --hosts hosts.txt --json --stdout
+
+  # Print results as table to terminal (explicit)
+  goprobe --hosts hosts.txt --stdout
 
   # Error on explicit empty ports list
-  goprobe --hosts hosts.txt --ports=`,
+  goprobe --hosts hosts.txt --ports=
+
+TIPS:
+  - You can use --ports multiple times: --ports 22 --ports 443
+  - If you don't specify any output flags, results print as a table by default.
+  - Use --timeout to avoid waiting too long for slow hosts.
+  - All output files are created in the current directory unless you specify a path.
+`,
+		Example: "See above for examples.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -89,44 +166,7 @@ in the current directory.`,
 					return fmt.Errorf("--ports= provided without any value\nuse --ports for defaults (22,80,443)\nor --ports=<port[,port,...]> for specific ports")
 				}
 			}
-
-			data, err := os.ReadFile(hostsFile)
-			if err != nil {
-				return err
-
-			}
-			hosts, err := fileToStrSlice(data)
-			if err != nil {
-				return err
-			}
-
-			results := probe(hosts, ports)
-
-			tcpcon.NewScanner(results, timeout)
-			for _, r := range results {
-				fmt.Fprintln(cmd.OutOrStdout(), r)
-			}
-
-			if writeCSV || csvPathOpt != "" {
-				path := csvPathOpt
-				if path == "" {
-					path = "goprobe.csv"
-				}
-				if err := writeCSVReport(path, results); err != nil {
-					return fmt.Errorf("write csv: %w", err)
-				}
-			}
-			if writeJSON || jsonPathOpt != "" {
-				path := jsonPathOpt
-				if path == "" {
-					path = "goprobe.json"
-				}
-				if err := writeJSONReport(path, results); err != nil {
-					return fmt.Errorf("write json: %w", err)
-				}
-			}
-
-			return nil
+			return RunProbe(hostsFile, ports, timeout, csvPathOpt, jsonPathOpt, writeCSV, writeJSON, writeStdout)
 		},
 	}
 
@@ -137,6 +177,17 @@ in the current directory.`,
 		"per-connection timeout (e.g., 500ms, 2s, 5s)")
 	rootCmd.Flags().StringSliceVar(&ports, "ports", defaultPorts, "ports to check availability")
 	_ = rootCmd.MarkFlagRequired("hosts")
+
+	rootCmd.Flags().StringVar(&csvPathOpt, "csv", "", "write results to CSV file (default: goprobe.csv)")
+	rootCmd.Flags().StringVar(&jsonPathOpt, "json", "", "write results to JSON file (default: goprobe.json)")
+	rootCmd.Flags().BoolVar(&writeStdout, "stdout", false, "print results to stdout as a table")
+
+	if f := rootCmd.Flags().Lookup("csv"); f != nil {
+		f.NoOptDefVal = "goprobe.csv"
+	}
+	if f := rootCmd.Flags().Lookup("json"); f != nil {
+		f.NoOptDefVal = "goprobe.json"
+	}
 
 	if f := rootCmd.Flags().Lookup("ports"); f != nil {
 		f.NoOptDefVal = strings.Join(defaultPorts, ",")
@@ -155,14 +206,4 @@ func fileToStrSlice(data []byte) ([]string, error) {
 		return []string{}, nil
 	}
 	return strings.Split(content, "\n"), nil
-}
-
-func writeCSVReport(path string, contents []string) error {
-
-	return nil
-}
-
-func writeJSONReport(path string, contents []string) error {
-
-	return nil
 }

@@ -7,7 +7,7 @@ import (
 )
 
 type Scanner struct {
-	hostsWStatus map[string]bool
+	HostsWStatus map[string]bool
 	timeout      time.Duration
 	mu           sync.Mutex // protect hostsWStatus
 }
@@ -16,8 +16,8 @@ func (s *Scanner) Listen4Port() {
 	var wg sync.WaitGroup
 
 	// copy keys first so we don't range the map while goroutines write to it
-	addrs := make([]string, 0, len(s.hostsWStatus))
-	for addr := range s.hostsWStatus {
+	addrs := make([]string, 0, len(s.HostsWStatus))
+	for addr := range s.HostsWStatus {
 		addrs = append(addrs, addr)
 	}
 
@@ -27,7 +27,7 @@ func (s *Scanner) Listen4Port() {
 			defer wg.Done()
 			open := s.isPortOpen(addr)
 			s.mu.Lock()
-			s.hostsWStatus[addr] = open
+			s.HostsWStatus[addr] = open
 			s.mu.Unlock()
 		}()
 	}
@@ -50,7 +50,7 @@ func NewScanner(hosts []string, timeout time.Duration) *Scanner {
 		m[h] = false
 	}
 	return &Scanner{
-		hostsWStatus: m,
+		HostsWStatus: m,
 		timeout:      timeout,
 	}
 }

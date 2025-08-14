@@ -9,9 +9,10 @@ import (
 type Scanner struct {
 	HostsWStatus map[string]bool
 	timeout      time.Duration
-	mu           sync.Mutex // protect hostsWStatus
+	mu           sync.Mutex // protect HostsWStatus
 }
 
+// listen4Port scans all hosts concurrently and updates HostsWStatus
 func (s *Scanner) Listen4Port() {
 	var wg sync.WaitGroup
 
@@ -23,20 +24,29 @@ func (s *Scanner) Listen4Port() {
 
 	for _, addr := range addrs {
 		wg.Add(1)
-		go func() {
+		go func(addr string) {
 			defer wg.Done()
-			open := s.isPortOpen(addr)
+			open := isPortOpen(addr, s.timeout)
 			s.mu.Lock()
 			s.HostsWStatus[addr] = open
 			s.mu.Unlock()
-		}()
+		}(addr)
 	}
 
 	wg.Wait()
 }
 
-func (s *Scanner) isPortOpen(addr string) bool {
+func (s *Scanner) IsPortOpenMetrics(addr string) bool {
 	conn, err := net.DialTimeout("tcp", addr, s.timeout)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
+}
+
+func isPortOpen(addr string, timeout time.Duration) bool {
+	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return false
 	}

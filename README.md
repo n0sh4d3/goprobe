@@ -1,98 +1,116 @@
 # goprobe
 
-A high-performance TCP port scanner and probe tool written in Go.
-
-## Overview
-
-`goprobe` is a CLI utility designed to efficiently check TCP port availability for a list of hosts. It demonstrates practical knowledge of TCP/IP networking, concurrency, error handling, and Go best practices. The project is structured for extensibility, reliability, and testability, making it suitable for both production use and technical interviews.
+A fast, flexible TCP port scanner written in Go.  
+Supports CSV, JSON, and colored table output, with robust CLI flags for easy use.
 
 ## Features
 
--   **TCP/IP Fundamentals:** Uses Go's `net` package to perform low-level TCP port checks.
--   **Concurrency:** Scans multiple hosts and ports in parallel for speed and efficiency.
--   **Customizable:** Accepts host lists and port lists via CLI flags and files.
--   **Output Options:** Results can be printed to stdout, or saved as CSV/JSON reports.
--   **Timeout Control:** Configurable connection timeouts for robust scanning.
--   **Comprehensive Testing:** Includes unit, property-based, fuzz, and benchmark tests for reliability.
--   **Automation:** Makefile for easy testing, coverage, and benchmarking.
-
-## Usage
-
-### Basic Scan
-
-```sh
-goprobe --hosts hosts.txt --ports=22,80,443
-```
-
-### Save Results
-
-```sh
-goprobe --hosts hosts.txt --csv results.csv --json results.json
-```
-
-### Custom Timeout
-
-```sh
-goprobe --hosts hosts.txt --ports=8080 --timeout 500ms
-```
-
-## Example Output
-
-```
-HOSTNAME       PORT         STATUS
-test.com       22           open
-test.com       80           open
-example.org    22           closed
-example.org    80           open
-```
+-   Scan multiple hosts and ports from files or CLI flags
+-   Output results as a colored table, CSV, or JSON
+-   Flexible output: print to stdout or write to files
+-   User-friendly CLI with clear help and examples
+-   Comprehensive error handling and notifications
+-   Extensive test coverage (unit, fuzz, benchmark)
 
 ## Installation
+
+Clone and build:
 
 ```sh
 git clone https://github.com/n0sh4d3/goprobe.git
 cd goprobe
-go build -o goprobe
+go build
 ```
 
-## Testing & Reliability
+## Usage
 
--   **Run all tests:**
-    ```sh
-    make all
-    ```
--   **Run fuzz tests:**
-    ```sh
-    make fuzz-all
-    ```
--   **View coverage:**
-    ```sh
-    make coverage
-    ```
+### Quick Start
 
-## Project Structure
+Scan hosts and ports from files, print results as a table:
 
--   `main.go` — CLI logic and entry point
--   `tcpCon/` — TCP connection scanner implementation
--   `main_test.go`, `tcpCon/tcpCon_test.go` — Comprehensive test suites
--   `Makefile` — Automation for testing, coverage, and benchmarking
--   `testdata/` — Sample data for testing
+```sh
+go run . --hosts test.txt --ports 22,80,443 --stdout
+```
 
-## Technical Highlights
+### Output Options
 
--   **TCP/IP:** Uses `net.DialTimeout` for port probing, demonstrating understanding of TCP handshakes and timeouts.
--   **Concurrency:** Utilizes goroutines and sync primitives for parallel scanning.
--   **Error Handling:** Gracefully handles unreachable hosts, closed ports, and invalid input.
--   **Extensibility:** Easily add new output formats or scanning strategies.
--   **Testing:** Fuzz, benchmark, and property-based tests ensure reliability and robustness.
+-   `--stdout`  
+    Print results to the terminal as a colored table (default if no output flags are given).
 
-## Why This Project?
+-   `--csv [filename]`  
+    Write results as CSV to the specified file. If no filename is given, defaults to `goprobe.csv`.
 
-This project showcases:
+-   `--json [filename]`  
+    Write results as JSON to the specified file. If no filename is given, defaults to `goprobe.json`.
 
--   Practical TCP/IP and networking skills
--   Idiomatic Go code and concurrency
--   Automated testing and CI readiness
--   Real-world error handling and reporting
+You can combine output flags to print and save results at the same time:
+
+```sh
+go run . --hosts test.txt --ports=22,80,443 --stdout --csv results.csv --json results.json
+```
+
+### Example
+
+```sh
+go run . --hosts test.txt --ports 22,80,443 --stdout
+go run . --hosts test.txt --ports 22,80,443 --csv
+go run . --hosts test.txt --ports 22,80,443 --json
+go run . --hosts test.txt --ports 22,80,443 --stdout --csv --json
+```
+
+### Flags
+
+-   `--hosts <file>`: File with hostnames/IPs (one per line)
+-   `--ports=<list>`: Comma-separated list of ports (e.g. `22,80,443`)
+-   `--timeout <ms>`: Timeout per connection (default: 1000ms)
+-   `--csv [file]`: Write CSV report (default: `goprobe.csv`)
+-   `--json [file]`: Write JSON report (default: `goprobe.json`)
+-   `--stdout`: Print results to terminal as a colored table
+
+## Output Formats
+
+**Table (stdout):**
+
+```
+hostname        port    status
+--------------- ------- -------
+example.com     22      open
+example.com     80      closed
+```
+
+**CSV:**
+
+```
+hostname,port,status
+example.com,22,open
+example.com,80,closed
+```
+
+**JSON:**
+
+```json
+[
+	{ "hostname": "example.com", "port": 22, "status": "open" },
+	{ "hostname": "example.com", "port": 80, "status": "closed" }
+]
+```
+
+## Notifications
+
+When writing to files, you'll see info messages like:
+
+```
+[INFO] CSV file created: results.csv
+[INFO] JSON file created: results.json
+```
+
+## Testing
+
+Run all tests (unit, fuzz, benchmark):
+
+```sh
+make test
+```
 
 ## License
 
@@ -100,4 +118,5 @@ MIT
 
 ---
 
-_Created for technical interviews and as a demonstration of Go, TCP/IP, and software engineering best practices._
+**Interview-ready:**  
+This project demonstrates advanced Go skills: concurrency, TCP/IP, CLI design, error handling, output formatting, and comprehensive testing.
